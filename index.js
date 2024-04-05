@@ -92,8 +92,8 @@ const initializeClient = async (userId, res, req) => {
         
             if (!qrCodeSent) {
                 // Construct the public URL
-                const publicUrl = `${req.protocol}://${req.get('host')}/qrcodes/${fileName}`;
-                // const publicUrl = `${req.protocol}://${req.get('host')}/whatsapp-app/qrcodes/${fileName}`;
+                // const publicUrl = `${req.protocol}://${req.get('host')}/qrcodes/${fileName}`;
+                const publicUrl = `${req.protocol}://${req.get('host')}/whatsapp-app/qrcodes/${fileName}`;
 
                 // Send the public URL to the client
                 res.json({ success: true, qrCode: publicUrl });
@@ -160,16 +160,49 @@ app.post('/verify', (req, res) => {
 
 
 // API endpoint to check if client exist
+app.post('/newcode', async (req, res) => { 
+    const { userId } = req.body;
+
+     const clientItem = clientsData.find(user => user.userId === userId); 
+     
+      if (!clientItem) {
+        console.log("clientItem is not found in the array:", userId); 
+          return res.status(101).json('clientItem is not found in the array');
+       }
+
+     const { client } = clientItem;
+   
+     try{
+            
+            await client.logout(); 
+            
+            //remove from array after destroying session 
+            clientsData.splice(clientItem, 1); 
+            //delete from old map
+            clients.delete(client);
+            //delete QR
+            qrGenerated.delete(userId);
+
+            return res.status(200).json('Session cleared');
+        }catch(error){ 
+            console.error('Error deleting session', error.message);
+            return res.status(500).json(error.message );
+        }
+    
+})
+
+// API endpoint to check if client exist
 app.post('/disconnect', async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) {
         return res.status(400).send('User ID is required.');
     }
-   
+      
+
     //#########################################################
 
-      const clientItem = clientsData.find(user => user.userId === userId);
+      const clientItem = clientsData.find(user => user.userId === userId); 
       const { client } = clientItem;
  
       if (!clientItem) {
@@ -178,13 +211,15 @@ app.post('/disconnect', async (req, res) => {
        }
  
      try{
-        // await client.logout();
-        await client.destroy(); 
+        await client.logout();
+        // await client.destroy(); 
         
         //remove from array after destroying session 
         clientsData.splice(clientItem, 1); 
         //delete from old map
         clients.delete(client);
+
+        qrGenerated.delete(userId);
 
        return await initializeClient(userId, res, req); 
       }catch(error){ 
